@@ -10,5 +10,5 @@
 local.properties
 result
 
-app/src/main/java/uniffi.iroh
+app/src/main/java/uniffi
 app/src/main/jniLibs

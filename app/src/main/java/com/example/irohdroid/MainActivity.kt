@@ -14,6 +14,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.irohdroid.ui.theme.IrohdroidTheme
 
 class MainActivity : ComponentActivity() {
+    val node0 = iroh.IrohNode(".");
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -21,7 +23,7 @@ class MainActivity : ComponentActivity() {
             IrohdroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = node0.nodeId(),
                         modifier = Modifier.padding(innerPadding)
                     )
                 }

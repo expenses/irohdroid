@@ -37,25 +37,29 @@
 
         android-abi = "29";
 
-        rust-targets = {
-          arm64-v8a = {
+        rust-targets = [
+          {
+            short = "arm64-v8a";
             triple = "aarch64-linux-android";
             clang = "aarch64-linux-android${android-abi}-clang";
-          };
-          armeabi-v7a = {
+          }
+          {
+            short = "armeabi-v7a";
             triple = "armv7-linux-androideabi";
             # Note: armv7a not armv7
             clang = "armv7a-linux-androideabi${android-abi}-clang";
-          };
-          x86 = {
+          }
+          {
+            short = "x86";
             triple = "i686-linux-android";
             clang = "i686-linux-android${android-abi}-clang";
-          };
-          x86_64 = {
+          }
+          {
+            short = "x86_64";
             triple = "x86_64-linux-android";
             clang = "x86_64-linux-android${android-abi}-clang";
-          };
-        };
+          }
+        ];
 
         rust-toolchain =
           with fenix.packages.${system};
@@ -64,17 +68,15 @@
               stable.cargo
               stable.rustc
             ]
-            ++ (builtins.attrValues (
-              builtins.mapAttrs (_: target: targets.${target.triple}.stable.toolchain) rust-targets
-            ))
+            ++ (builtins.map (target: targets.${target.triple}.stable.toolchain) rust-targets)
           );
 
         inherit (gradle2nix-flake.packages.${system}) gradle2nix;
 
         crane-lib = (crane.mkLib pkgs).overrideToolchain rust-toolchain;
 
-        builds = builtins.mapAttrs (
-          short: target:
+        builds = builtins.map (
+          target:
           let
             inherit (target) triple;
             triple-upper = builtins.replaceStrings [ "-" ] [ "_" ] (pkgs.lib.strings.toUpper triple);
@@ -86,13 +88,16 @@
               "${builtins.elemAt split 1}-${builtins.elemAt split 0}";
             clang-path = "${ndk-bundle}/toolchains/llvm/prebuilt/${system-dir}/bin/${target.clang}";
           in
-          crane-lib.buildPackage {
-            src = iroh-ffi-src;
-            doCheck = false;
-            cargoExtraArgs = "--lib";
-            CARGO_BUILD_TARGET = triple;
-            "CC_${triple}" = clang-path;
-            "CARGO_TARGET_${triple-upper}_LINKER" = clang-path;
+          target
+          // {
+            build = crane-lib.buildPackage {
+              src = iroh-ffi-src;
+              doCheck = false;
+              cargoExtraArgs = "--lib";
+              CARGO_BUILD_TARGET = triple;
+              "CC_${triple}" = clang-path;
+              "CARGO_TARGET_${triple-upper}_LINKER" = clang-path;
+            };
           }
         ) rust-targets;
 
@@ -117,26 +122,27 @@
 
         jniLibs =
           let
-            commands = builtins.mapAttrs (short: build: ''
-              mkdir -p $out/${short}
-              ln -s ${build}/lib/libiroh.so $out/${short}/libuniffi_iroh.so
+            commands = builtins.map (build: ''
+              mkdir -p $out/${build.short}
+              ln -s ${build.build}/lib/libiroh.so $out/${build.short}/libuniffi_iroh.so
             '') builds;
           in
-          pkgs.runCommand "jniLibs" { } (
-            pkgs.lib.strings.concatStringsSep "\n" (builtins.attrValues commands)
-          );
+          pkgs.runCommand "jniLibs" { } (pkgs.lib.strings.concatStringsSep "\n" commands);
 
-          src-overlay = pkgs.runCommand "src-overlay" {} ''
-            mkdir -p $out/app/src/main
-            ln -s ${jniLibs} $out/app/src/main/jniLibs
-            mkdir -p $out/app/src/main/java
-            ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi.iroh
-          '';
+        src-overlay = pkgs.runCommand "src-overlay" { } ''
+          mkdir -p $out/app/src/main
+          ln -s ${jniLibs} $out/app/src/main/jniLibs
+          mkdir -p $out/app/src/main/java/uniffi
+          ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi/iroh
+        '';
 
-          full-src = pkgs.symlinkJoin {
-            name = "full-src";
-            paths = [clean-src src-overlay];
-          };
+        full-src = pkgs.symlinkJoin {
+          name = "full-src";
+          paths = [
+            clean-src
+            src-overlay
+          ];
+        };
       in
       {
         devShells.build = pkgs.mkShell {
@@ -144,7 +150,8 @@
 
           shellHook = ''
             ln -s -f ${jniLibs} app/src/main/jniLibs
-            ln -s -f ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi.iroh
+            mkdir app/src/main/java/uniffi
+            ln -s -f ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
           '';
         };
 
@@ -156,7 +163,12 @@
         };
 
         packages = {
-          inherit jniLibs patched-gradle-lock src-overlay full-src;
+          inherit
+            jniLibs
+            patched-gradle-lock
+            src-overlay
+            full-src
+            ;
           app = gradle2nix-flake.builders.${system}.buildGradlePackage {
             lockFile = patched-gradle-lock;
             src = full-src;
