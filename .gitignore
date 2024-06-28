@@ -14,3 +14,6 @@
 .cxx
 local.properties
 result
+
+app/src/main/java/uniffi.iroh
+app/src/main/jniLibs
