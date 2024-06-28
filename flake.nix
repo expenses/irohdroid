@@ -125,6 +125,18 @@
           pkgs.runCommand "jniLibs" { } (
             pkgs.lib.strings.concatStringsSep "\n" (builtins.attrValues commands)
           );
+
+          src-overlay = pkgs.runCommand "src-overlay" {} ''
+            mkdir -p $out/app/src/main
+            ln -s ${jniLibs} $out/app/src/main/jniLibs
+            mkdir -p $out/app/src/main/java
+            ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi.iroh
+          '';
+
+          full-src = pkgs.symlinkJoin {
+            name = "full-src";
+            paths = [clean-src src-overlay];
+          };
       in
       {
         devShells.build = pkgs.mkShell {
@@ -144,10 +156,10 @@
         };
 
         packages = {
-          inherit jniLibs patched-gradle-lock;
+          inherit jniLibs patched-gradle-lock src-overlay full-src;
           app = gradle2nix-flake.builders.${system}.buildGradlePackage {
             lockFile = patched-gradle-lock;
-            src = clean-src;
+            src = full-src;
             version = "0.1.0";
             gradleBuildFlags = [ "build" ];
             postBuild = ''

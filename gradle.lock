@@ -2349,6 +2349,16 @@
       "hash": "sha256-KBRAgRJo5l2eJms8yJgpfiFOBPCXQNA4bO60qJI9Y78="
     }
   },
+  "net.java.dev.jna:jna:5.13.0": {
+    "jna-5.13.0.aar": {
+      "url": "https://repo.maven.apache.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.aar",
+      "hash": "sha256-OgPa9achIgHDqbRPc038m6uzrdy1y/pjn59TXoh5JcA="
+    },
+    "jna-5.13.0.pom": {
+      "url": "https://repo.maven.apache.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.pom",
+      "hash": "sha256-9RXCV4F49FJH7Mp6nh2xCVMbHELyQk4lPO6w9rjUI3Q="
+    }
+  },
   "net.java.dev.jna:jna:5.6.0": {
     "jna-5.6.0.jar": {
       "url": "https://repo.maven.apache.org/maven2/net/java/dev/jna/jna/5.6.0/jna-5.6.0.jar",
