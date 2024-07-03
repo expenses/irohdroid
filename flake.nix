@@ -13,7 +13,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     iroh-ffi-src = {
-      url = "github:n0-computer/iroh-ffi";
+      url = "github:expenses/iroh-ffi/uniffi-macros-gradual";
       flake = false;
     };
   };
@@ -43,7 +43,7 @@
             triple = "aarch64-linux-android";
             clang = "aarch64-linux-android${android-abi}-clang";
           }
-          {
+          /*{
             short = "armeabi-v7a";
             triple = "armv7-linux-androideabi";
             # Note: armv7a not armv7
@@ -53,7 +53,7 @@
             short = "x86";
             triple = "i686-linux-android";
             clang = "i686-linux-android${android-abi}-clang";
-          }
+          }*/
           {
             short = "x86_64";
             triple = "x86_64-linux-android";
@@ -83,9 +83,9 @@
             # Flip the flake-utils system around.
             system-dir =
               let
-                split = builtins.filter (x: builtins.typeOf x == "string") (builtins.split "-" system);
+                split = builtins.split "-" system;
               in
-              "${builtins.elemAt split 1}-${builtins.elemAt split 0}";
+              "${builtins.elemAt split 2}-${builtins.elemAt split 0}";
             clang-path = "${ndk-bundle}/toolchains/llvm/prebuilt/${system-dir}/bin/${target.clang}";
           in
           target
@@ -124,7 +124,7 @@
           let
             commands = builtins.map (build: ''
               mkdir -p $out/${build.short}
-              ln -s ${build.build}/lib/libiroh.so $out/${build.short}/libuniffi_iroh.so
+              ln -s ${build.build}/lib/libiroh.so $out/${build.short}/libiroh.so
             '') builds;
           in
           pkgs.runCommand "jniLibs" { } (pkgs.lib.strings.concatStringsSep "\n" commands);
