@@ -43,7 +43,8 @@
             triple = "aarch64-linux-android";
             clang = "aarch64-linux-android${android-abi}-clang";
           }
-          /*{
+
+          {
             short = "armeabi-v7a";
             triple = "armv7-linux-androideabi";
             # Note: armv7a not armv7
@@ -53,7 +54,8 @@
             short = "x86";
             triple = "i686-linux-android";
             clang = "i686-linux-android${android-abi}-clang";
-          }*/
+          }
+
           {
             short = "x86_64";
             triple = "x86_64-linux-android";
@@ -75,31 +77,33 @@
 
         crane-lib = (crane.mkLib pkgs).overrideToolchain rust-toolchain;
 
-        builds = builtins.map (
-          target:
-          let
-            inherit (target) triple;
-            triple-upper = builtins.replaceStrings [ "-" ] [ "_" ] (pkgs.lib.strings.toUpper triple);
-            # Flip the flake-utils system around.
-            system-dir =
-              let
-                split = builtins.split "-" system;
-              in
-              "${builtins.elemAt split 2}-${builtins.elemAt split 0}";
-            clang-path = "${ndk-bundle}/toolchains/llvm/prebuilt/${system-dir}/bin/${target.clang}";
-          in
-          target
-          // {
-            build = crane-lib.buildPackage {
-              src = iroh-ffi-src;
-              doCheck = false;
-              cargoExtraArgs = "--lib";
-              CARGO_BUILD_TARGET = triple;
-              "CC_${triple}" = clang-path;
-              "CARGO_TARGET_${triple-upper}_LINKER" = clang-path;
-            };
-          }
-        ) rust-targets;
+        all-builds = builtins.listToAttrs (
+          builtins.map (
+            target:
+            let
+              inherit (target) triple;
+              triple-upper = builtins.replaceStrings [ "-" ] [ "_" ] (pkgs.lib.strings.toUpper triple);
+              # Flip the flake-utils system around.
+              system-dir =
+                let
+                  split = builtins.split "-" system;
+                in
+                "${builtins.elemAt split 2}-${builtins.elemAt split 0}";
+              clang-path = "${ndk-bundle}/toolchains/llvm/prebuilt/${system-dir}/bin/${target.clang}";
+            in
+            {
+              name = target.short;
+              value = crane-lib.buildPackage {
+                src = iroh-ffi-src;
+                doCheck = false;
+                cargoExtraArgs = "--lib";
+                CARGO_BUILD_TARGET = triple;
+                "CC_${triple}" = clang-path;
+                "CARGO_TARGET_${triple-upper}_LINKER" = clang-path;
+              };
+            }
+          ) rust-targets
+        );
 
         clean-src-filter = (
           name: _type:
@@ -120,56 +124,39 @@
           patches = builtins.fromJSON (builtins.readFile ./other-gradle.lock);
         };
 
-        jniLibs =
+        jni-libs-for-builds =
+          builds:
           let
-            commands = builtins.map (build: ''
-              mkdir -p $out/${build.short}
-              ln -s ${build.build}/lib/libiroh.so $out/${build.short}/libiroh.so
-            '') builds;
+            commands = builtins.attrValues (
+              builtins.mapAttrs (name: build: ''
+                mkdir -p $out/${name}
+                ln -s ${build}/lib/libiroh.so $out/${name}/libiroh.so
+              '') builds
+            );
           in
           pkgs.runCommand "jniLibs" { } (pkgs.lib.strings.concatStringsSep "\n" commands);
 
-        src-overlay = pkgs.runCommand "src-overlay" { } ''
-          mkdir -p $out/app/src/main
-          ln -s ${jniLibs} $out/app/src/main/jniLibs
-          mkdir -p $out/app/src/main/java/uniffi
-          ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi/iroh
-        '';
+        apk-for-rust-builds =
+          rust-builds:
+          let
+            jniLibs = jni-libs-for-builds rust-builds;
 
-        full-src = pkgs.symlinkJoin {
-          name = "full-src";
-          paths = [
-            clean-src
-            src-overlay
-          ];
-        };
-      in
-      {
-        devShells.build = pkgs.mkShell {
-          nativeBuildInputs = [ pkgs.openjdk ];
+            src-overlay = pkgs.runCommand "src-overlay" { } ''
+              mkdir -p $out/app/src/main
+              ln -s ${jniLibs} $out/app/src/main/jniLibs
+              mkdir -p $out/app/src/main/java/uniffi
+              ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi/iroh
+            '';
 
-          shellHook = ''
-            ln -s -f ${jniLibs} app/src/main/jniLibs
-            mkdir app/src/main/java/uniffi
-            ln -s -f ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
-          '';
-        };
-
-        devShells.default = pkgs.mkShell {
-          nativeBuildInputs = [
-            gradle2nix
-            pkgs.openjdk
-          ];
-        };
-
-        packages = {
-          inherit
-            jniLibs
-            patched-gradle-lock
-            src-overlay
-            full-src
-            ;
-          app = gradle2nix-flake.builders.${system}.buildGradlePackage {
+            full-src = pkgs.symlinkJoin {
+              name = "full-src";
+              paths = [
+                clean-src
+                src-overlay
+              ];
+            };
+          in
+          gradle2nix-flake.builders.${system}.buildGradlePackage {
             lockFile = patched-gradle-lock;
             src = full-src;
             version = "0.1.0";
@@ -188,7 +175,29 @@
             }/share/android-sdk";
             overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = patched-gradle-lock; };
           };
-          repo = gradle2nix-flake.builders.${system}.buildMavenRepo { lockFile = ./gradle.lock; };
+      in
+      {
+        devShells.build = pkgs.mkShell {
+          nativeBuildInputs = [ pkgs.openjdk ];
+
+          shellHook = ''
+            ln -s -f ${jni-libs-for-builds { inherit (all-builds) x86_64; }} app/src/main/jniLibs
+            mkdir app/src/main/java/uniffi
+            ln -s -f ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
+          '';
+        };
+
+        devShells.default = pkgs.mkShell {
+          nativeBuildInputs = [
+            gradle2nix
+            pkgs.openjdk
+          ];
+        };
+
+        packages = {
+          inherit patched-gradle-lock;
+          app = apk-for-rust-builds { inherit (all-builds) arm64-v8a; };
+          universal-app = apk-for-rust-builds all-builds;
         };
       }
     );

@@ -779,6 +779,16 @@
       "hash": "sha256-zS4gZQFuUBBWMFOQX/fl/RYaS2nLJqMvFuy7R+F3llg="
     }
   },
+  "androidx.documentfile:documentfile:1.0.1": {
+    "documentfile-1.0.1.aar": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/documentfile/documentfile/1.0.1/documentfile-1.0.1.aar",
+      "hash": "sha256-nFPSTOVeeDa0TlqFs/b6AG/fh0LUoagNjUMt7qZhCNE="
+    },
+    "documentfile-1.0.1.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/documentfile/documentfile/1.0.1/documentfile-1.0.1.pom",
+      "hash": "sha256-ehG/eCm5vK1cr5i5V/jsFWYuxdqwe6JDMzH3xHbGuqw="
+    }
+  },
   "androidx.emoji2:emoji2:1.4.0": {
     "emoji2-1.4.0.aar": {
       "url": "https://dl.google.com/dl/android/maven2/androidx/emoji2/emoji2/1.4.0/emoji2-1.4.0.aar",
