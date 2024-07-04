@@ -48,6 +48,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Duration
+import kotlin.concurrent.thread
 
 
 class MainActivity : ComponentActivity() {
@@ -87,7 +88,10 @@ fun PermissionsCheck() {
 
         val permissions = rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
-        ) {}
+        ) { _ -> run {
+            hasPermissions.value = Environment.isExternalStorageManager()
+        }
+        }
 
         Text("The manage all files permission is required")
         
@@ -96,7 +100,6 @@ fun PermissionsCheck() {
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                 Uri.parse("package:${context.packageName}")
             ))
-            hasPermissions.value = Environment.isExternalStorageManager()
         }) {
             Text("Get Permissions")
         }
@@ -323,10 +326,12 @@ fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAn
     val directoryIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
     doc.value?.also  { doc -> run {
-        val import: (DocumentFile) -> Unit = { source: DocumentFile ->
-            scope.launch {
-                importDirectoryFile(doc, defaultAuthor, source, scope)
-                entries.value = doc.getMany(iroh.Query.all(null))
+        val import = { source: DocumentFile ->
+            thread {
+                scope.launch {
+                    importDirectoryFile(doc, defaultAuthor, source, scope)
+                    entries.value = doc.getMany(iroh.Query.all(null))
+                }
             }
         }
 

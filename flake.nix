@@ -34,6 +34,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         inherit (android-nixpkgs.packages.${system}) ndk-bundle;
+        build-tools = android-nixpkgs.packages.${system}.build-tools-34-0-0;
 
         android-abi = "29";
 
@@ -188,12 +189,28 @@
 
         packages = let
           aarch64-only = { inherit (all-builds) arm64-v8a; };
+          keystore-password = "android";
         in rec {
+          keystore = pkgs.runCommand "keystore.keystore" { } ''
+            mkdir $out
+            ${pkgs.openjdk}/bin/keytool -genkey -v -keystore $out/keystore.keystore -storepass ${keystore-password} -alias \
+            androiddebugkey -keypass ${keystore-password} -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA \
+            -keysize 2048 -validity 10000
+          '';
+
           app-jni-libs = jni-libs-for-builds aarch64-only;
           app = apk-for-rust-builds aarch64-only;
+          signed-app = pkgs.runCommand "signed-apk" { } ''
+            cp ${app}/release/app-release-unsigned.apk .
+            chmod +w app-release-unsigned.apk
+            mkdir $out
+            ${build-tools}/apksigner sign --ks ${keystore}/keystore.keystore \
+            --ks-pass pass:${keystore-password} app-release-unsigned.apk
+            mv app-release-unsigned.apk $out/app-release.apk
+          '';
           universal-app = apk-for-rust-builds all-builds;
-          install-debug = pkgs.writeShellScript "install-debug" ''
-            adb install ${app}/debug/app-debug.apk
+          install-release = pkgs.writeShellScriptBin "install-release" ''
+            adb install ${signed-app}/app-release.apk
           '';
         };
       }
