@@ -2,11 +2,11 @@
 
 package com.example.irohdroid
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,7 +18,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
@@ -35,6 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
+import iroh.AuthorId
+import iroh.IrohNode
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -58,6 +67,8 @@ class MainActivity : ComponentActivity() {
                         style = typography.headlineLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    PermissionsCheck()
+
                     Node(filesDir)
                 }
             }
@@ -66,11 +77,38 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun PermissionsCheck() {
+    val hasPermissions = remember {
+        mutableStateOf(Environment.isExternalStorageManager())
+    }
+
+    if (!hasPermissions.value) {
+        val context = LocalContext.current
+
+        val permissions = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) {}
+
+        Text("The manage all files permission is required")
+        
+        Button(onClick = {
+            permissions.launch(Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            ))
+            hasPermissions.value = Environment.isExternalStorageManager()
+        }) {
+            Text("Get Permissions")
+        }
+    }
+}
+
+@Composable
 fun Node(filesDir: File, modifier: Modifier = Modifier) {
-    val node = remember { mutableStateOf<iroh.IrohNode?>(null)}
+    val node = remember { mutableStateOf<IrohNode?>(null)}
 
     LaunchedEffect(Unit) {
-        node.value = iroh.IrohNode.withOptions(
+        node.value = IrohNode.withOptions(
                 filesDir.absolutePath,
                 iroh.NodeOptions(gcIntervalMillis = 0u)
             )
@@ -91,7 +129,7 @@ fun formatOptDuration(duration: Duration?): Float? {
 }
 
 @Composable
-fun NodeInfo(node: iroh.IrohNode) {
+fun NodeInfo(node: IrohNode) {
     val id = node.nodeId()
     val clipboardManager = LocalClipboardManager.current
 
@@ -172,9 +210,9 @@ fun NodeInfo(node: iroh.IrohNode) {
 }
 
 @Composable
-fun Authors(node: iroh.IrohNode) {
-    val authors = remember { mutableStateOf<List<iroh.AuthorId>>(listOf())}
-    val defaultAuthor = remember { mutableStateOf<iroh.AuthorId?>(null)}
+fun Authors(node: IrohNode) {
+    val authors = remember { mutableStateOf<List<AuthorId>>(listOf())}
+    val defaultAuthor = remember { mutableStateOf<AuthorId?>(null)}
 
     LaunchedEffect(Unit) {
         authors.value = node.authorList()
@@ -244,22 +282,23 @@ class Callback: iroh.DocImportFileCallback {
     }
 }
 
-fun importDirectoryFile(doc: iroh.Doc, defaultAuthor: iroh.AuthorId, source: DocumentFile, context: Context) {
-    source.listFiles().forEach { file -> run {
-        if (file.isFile) {
-            Log.d(null, file.canRead().toString())
-            val path = uriToRealPath(file.uri).toString()
-            Log.d(null, path)
-            val bytes = context.contentResolver.openInputStream(file.uri)?.readBytes()
-            bytes?.let {
-                doc.setBytes(defaultAuthor, path.toByteArray(), bytes)
-            }
+suspend fun importDirectoryFile(doc: iroh.Doc, defaultAuthor: AuthorId, source: DocumentFile, scope: CoroutineScope) {
+    if (source.isFile) {
+        Log.d(null, "${source.uri} ${source.canRead()}")
+        val path = uriToRealPath(source.uri).toString()
+        Log.d(null, "${File(path)} ${File(path).canRead()}")
+        Log.d(null, path)
+        doc.importFile(defaultAuthor, path.toByteArray(), path, true, Callback())
+    } else if (source.isDirectory) {
+        for (child in source.listFiles()) {
+            importDirectoryFile(doc, defaultAuthor, child, scope)
         }
-    } }
+    }
 }
 
+
 @Composable
-fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
+fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
@@ -285,12 +324,11 @@ fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.N
 
     doc.value?.also  { doc -> run {
         val import: (DocumentFile) -> Unit = { source: DocumentFile ->
-            run {
-                importDirectoryFile(doc, defaultAuthor, source, context)
+            scope.launch {
+                importDirectoryFile(doc, defaultAuthor, source, scope)
                 entries.value = doc.getMany(iroh.Query.all(null))
             }
         }
-
 
         val directoryPicker = rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -320,13 +358,13 @@ fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.N
             }
             sources.forEach { source -> Row {
                 Text(source.name.toString())
-                Button(onClick = {
+                IconButton(onClick = {
                     import(source)
                 }) {
-                    Text("Ref")
+                    Icon(Icons.Default.Refresh, null)
                 }
-                Button(onClick = { sources.remove(source) }) {
-                    Text("X")
+                IconButton(onClick = { sources.remove(source) }) {
+                    Icon(Icons.Default.Close, null)
                 }
             }}
             Row(
@@ -338,7 +376,7 @@ fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.N
                 }) {
                     Text("Add Source")
                 }
-                Button(onClick = {
+                IconButton(onClick = {
                     scope.launch {
                         val ticket = doc.share(
                             iroh.ShareMode.WRITE,
@@ -347,22 +385,22 @@ fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.N
                         clipboardManager.setText(AnnotatedString(ticket))
                     }
                 }) {
-                    Text("Share")
+                    Icon(Icons.Default.Share, null)
                 }
-                Button(onClick = {
+                IconButton(onClick = {
                     scope.launch {
                         node.docDrop(document.namespace)
                         onDelete()
                     }
                 }) {
-                    Text("X")
+                    Icon(Icons.Default.Close, null)
                 }
-                Button(onClick = {
+                IconButton(onClick = {
                     scope.launch {
                         entries.value = doc.getMany(iroh.Query.all(null))
                     }
                 }) {
-                    Text("refresh")
+                    Icon(Icons.Default.Refresh, null)
                 }
             }
         }
@@ -370,10 +408,10 @@ fun Document(node: iroh.IrohNode, defaultAuthor: iroh.AuthorId, document: iroh.N
 }
 
 @Composable
-fun Docs(node: iroh.IrohNode) {
+fun Docs(node: IrohNode) {
     val documents = remember { mutableStateOf<List<iroh.NamespaceAndCapability>>(listOf())}
     val defaultAuthor = remember {
-        mutableStateOf<iroh.AuthorId?>(null)
+        mutableStateOf<AuthorId?>(null)
     }
 
     LaunchedEffect(Unit) {

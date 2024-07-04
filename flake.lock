@@ -178,16 +178,16 @@
     "iroh-ffi-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1719765797,
-        "narHash": "sha256-xkn6bIbqqqJ+JlIQLf9j5UdgWjMj6nElxFisdA1qDQ4=",
-        "owner": "expenses",
+        "lastModified": 1720024945,
+        "narHash": "sha256-xQF+69kP9phdpN608QUXbk6xA6PjpT9AbG3XwuKwGEo=",
+        "owner": "n0-computer",
         "repo": "iroh-ffi",
-        "rev": "d115b83037c69486620826dfe8fed84c9d1cdd45",
+        "rev": "27f8d8c8422cf6bec4d81fbb56e2f7fe8ecef165",
         "type": "github"
       },
       "original": {
-        "owner": "expenses",
-        "ref": "uniffi-macros-gradual",
+        "owner": "n0-computer",
+        "ref": "feat-async-macros",
         "repo": "iroh-ffi",
         "type": "github"
       }

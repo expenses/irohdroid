@@ -13,7 +13,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     iroh-ffi-src = {
-      url = "github:expenses/iroh-ffi/uniffi-macros-gradual";
+      url = "github:n0-computer/iroh-ffi/feat-async-macros";
       flake = false;
     };
   };
@@ -118,19 +118,13 @@
           filter = clean-src-filter;
         };
 
-        # Merge two gradle.lock files as some deps are missing.
-        patched-gradle-lock = pkgs.callPackage ./nix/patch-gradle-lock.nix {
-          gradleLock = ./gradle.lock;
-          patches = builtins.fromJSON (builtins.readFile ./other-gradle.lock);
-        };
-
         jni-libs-for-builds =
           builds:
           let
             commands = builtins.attrValues (
               builtins.mapAttrs (name: build: ''
                 mkdir -p $out/${name}
-                ln -s ${build}/lib/libiroh.so $out/${name}/libiroh.so
+                ln -s ${build}/lib/libiroh_ffi.so $out/${name}/libiroh_ffi.so
               '') builds
             );
           in
@@ -157,7 +151,7 @@
             };
           in
           gradle2nix-flake.builders.${system}.buildGradlePackage {
-            lockFile = patched-gradle-lock;
+            lockFile = ./gradle.lock;
             src = full-src;
             version = "0.1.0";
             gradleBuildFlags = [ "build" ];
@@ -173,31 +167,34 @@
                 ]
               )
             }/share/android-sdk";
-            overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = patched-gradle-lock; };
+            overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = ./gradle.lock; };
           };
       in
       {
-        devShells.build = pkgs.mkShell {
-          nativeBuildInputs = [ pkgs.openjdk ];
-
-          shellHook = ''
-            ln -s -f ${jni-libs-for-builds { inherit (all-builds) x86_64; }} app/src/main/jniLibs
-            mkdir app/src/main/java/uniffi
-            ln -s -f ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
-          '';
-        };
-
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
             gradle2nix
             pkgs.openjdk
           ];
+
+          shellHook = ''
+            rm app/src/main/jniLibs
+            ln -s ${jni-libs-for-builds { inherit (all-builds) x86_64; }} app/src/main/jniLibs
+            mkdir app/src/main/java/uniffi
+            rm app/src/main/java/uniffi/iroh
+            ln -s ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
+          '';
         };
 
-        packages = {
-          inherit patched-gradle-lock;
-          app = apk-for-rust-builds { inherit (all-builds) arm64-v8a; };
+        packages = let
+          aarch64-only = { inherit (all-builds) arm64-v8a; };
+        in rec {
+          app-jni-libs = jni-libs-for-builds aarch64-only;
+          app = apk-for-rust-builds aarch64-only;
           universal-app = apk-for-rust-builds all-builds;
+          install-debug = pkgs.writeShellScript "install-debug" ''
+            adb install ${app}/debug/app-debug.apk
+          '';
         };
       }
     );
