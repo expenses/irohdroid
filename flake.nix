@@ -33,7 +33,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        inherit (android-nixpkgs.packages.${system}) ndk-bundle;
+        ndk-bundle = pkgs.fetchzip {url = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r26b-aarch64.zip"; hash = "sha256-W5NOlirVqba1DDOwIaknL3P9bK088PdfGfvW+nt7r8E";};
 
         android-abi = "29";
 
