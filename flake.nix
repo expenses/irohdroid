@@ -13,7 +13,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     iroh-ffi-src = {
-      url = "github:n0-computer/iroh-ffi/feat-async-macros";
+      url = "github:expenses/iroh-ffi/irohdroid-extensions";
       flake = false;
     };
   };
@@ -106,6 +106,18 @@
           ) rust-targets
         );
 
+        uniffi = crane-lib.buildPackage {
+          src = ./uniffi-bindgen;
+        };
+
+        kotlin-bindings = pkgs.runCommand "kotlin-bindings" {
+          nativeBuildInputs = [rust-toolchain];
+          CARGO_HOME = crane-lib.vendorCargoDeps {cargoLock = "${iroh-ffi-src}/Cargo.lock";};
+        } ''
+          cd ${iroh-ffi-src}
+          ${uniffi}/bin/uniffi-bindgen generate --library ${all-builds.x86_64}/lib/*.so --language kotlin --out-dir $out
+        '';
+
         clean-src-filter = (
           name: _type:
           let
@@ -139,8 +151,7 @@
             src-overlay = pkgs.runCommand "src-overlay" { } ''
               mkdir -p $out/app/src/main
               ln -s ${jniLibs} $out/app/src/main/jniLibs
-              mkdir -p $out/app/src/main/java/uniffi
-              ln -s ${iroh-ffi-src}/kotlin/iroh $out/app/src/main/java/uniffi/iroh
+              ln -s ${kotlin-bindings} $out/app/src/main/java/uniffi
             '';
 
             full-src = pkgs.symlinkJoin {
@@ -170,6 +181,7 @@
             }/share/android-sdk";
             overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = ./gradle.lock; };
           };
+          x86_64-only = { inherit (all-builds) x86_64; };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -180,10 +192,9 @@
 
           shellHook = ''
             rm app/src/main/jniLibs
-            ln -s ${jni-libs-for-builds { inherit (all-builds) x86_64; }} app/src/main/jniLibs
-            mkdir app/src/main/java/uniffi
-            rm app/src/main/java/uniffi/iroh
-            ln -s ${iroh-ffi-src}/kotlin/iroh app/src/main/java/uniffi/iroh
+            ln -s ${jni-libs-for-builds x86_64-only} app/src/main/jniLibs
+            rm app/src/main/java/uniffi
+            ln -s ${kotlin-bindings} app/src/main/java/uniffi
           '';
         };
 
@@ -191,6 +202,8 @@
           aarch64-only = { inherit (all-builds) arm64-v8a; };
           keystore-password = "android";
         in rec {
+          inherit uniffi kotlin-bindings;
+
           keystore = pkgs.runCommand "keystore.keystore" { } ''
             mkdir $out
             ${pkgs.openjdk}/bin/keytool -genkey -v -keystore $out/keystore.keystore -storepass ${keystore-password} -alias \
@@ -198,6 +211,7 @@
             -keysize 2048 -validity 10000
           '';
 
+          emu-jni-libs = jni-libs-for-builds x86_64-only;
           app-jni-libs = jni-libs-for-builds aarch64-only;
           app = apk-for-rust-builds aarch64-only;
           signed-app = pkgs.runCommand "signed-apk" { } ''

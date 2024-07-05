@@ -42,6 +42,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import iroh.AuthorId
+import iroh.Backend
 import iroh.IrohNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -108,20 +109,19 @@ fun PermissionsCheck() {
 
 @Composable
 fun Node(filesDir: File, modifier: Modifier = Modifier) {
-    val node = remember { mutableStateOf<IrohNode?>(null)}
+    val backend = remember { mutableStateOf<Backend?>(null)}
 
     LaunchedEffect(Unit) {
-        node.value = IrohNode.withOptions(
+        backend.value = Backend.create(
                 filesDir.absolutePath,
-                iroh.NodeOptions(gcIntervalMillis = 0u)
             )
 
     }
 
-    node.value?.also { node -> run {
-        NodeInfo(node)
+    backend.value?.also { backend -> run {
+        NodeInfo(backend.node())
         //Authors(iroh_node)
-        Docs(node)
+        Docs(backend)
     }} ?: run {
         Text("Node starting...", modifier=modifier)
     }
@@ -272,7 +272,7 @@ fun uriToRealPath(uri: Uri): String? {
 }
 
 class Callback: iroh.DocImportFileCallback {
-    override fun progress(progress: iroh.DocImportProgress) {
+    override suspend fun progress(progress: iroh.DocImportProgress) {
         Log.d(null, progress.type().toString())
 
         when (progress.type()) {
@@ -301,7 +301,9 @@ suspend fun importDirectoryFile(doc: iroh.Doc, defaultAuthor: AuthorId, source: 
 
 
 @Composable
-fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
+fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
+    val node = backend.node()
+
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
@@ -329,7 +331,7 @@ fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAn
         val import = { source: DocumentFile ->
             thread {
                 scope.launch {
-                    importDirectoryFile(doc, defaultAuthor, source, scope)
+                    backend.addFileTree(doc, defaultAuthor, uriToRealPath(source.uri).toString(), true, Callback())
                     entries.value = doc.getMany(iroh.Query.all(null))
                 }
             }
@@ -361,7 +363,9 @@ fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAn
                 Text(document.capability.toString())
                 Text(entries.value.size.toString())
             }
-            sources.forEach { source -> Row {
+            sources.forEach { source -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(source.name.toString())
                 IconButton(onClick = {
                     import(source)
@@ -413,7 +417,9 @@ fun Document(node: IrohNode, defaultAuthor: AuthorId, document: iroh.NamespaceAn
 }
 
 @Composable
-fun Docs(node: IrohNode) {
+fun Docs(backend: Backend) {
+    val node = backend.node()
+
     val documents = remember { mutableStateOf<List<iroh.NamespaceAndCapability>>(listOf())}
     val defaultAuthor = remember {
         mutableStateOf<AuthorId?>(null)
@@ -434,7 +440,7 @@ fun Docs(node: IrohNode) {
             )
             documents.value.forEach { document ->
                 run {
-                    Document(node, defaultAuthor, document, onDelete = {
+                    Document(backend, defaultAuthor, document, onDelete = {
                         documents.value = node.docList()
                     })
                 }
