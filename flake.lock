@@ -178,11 +178,11 @@
     "iroh-ffi-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1720260198,
-        "narHash": "sha256-aEiBAf2lx/0SMtXAVcWrTFMgfAX7jCwTr1cTKXnyQ7c=",
+        "lastModified": 1720264319,
+        "narHash": "sha256-Q55v5Z4LgiZGsTCniXf2DcxXkN505Y8iRiHnJPzMLRk=",
         "owner": "expenses",
         "repo": "iroh-ffi",
-        "rev": "8ac709d4ad6b819b5a33cd95ee057712e850ae7c",
+        "rev": "3d33604ffa42d4924f5f6e2c4c947fb0ee972d9c",
         "type": "github"
       },
       "original": {

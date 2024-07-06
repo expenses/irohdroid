@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,8 +41,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.documentfile.provider.DocumentFile
-import iroh.AuthorId
 import iroh.Backend
 import iroh.IrohNode
 import kotlinx.coroutines.delay
@@ -51,7 +48,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Duration
 import kotlin.concurrent.thread
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -213,6 +209,187 @@ fun NodeInfo(node: IrohNode) {
     }
 }
 
+fun uriToRealPath(uri: Uri): String? {
+    uri.path?.also { path -> run {
+        val pathSections = path.split(":")
+        return Environment.getExternalStorageDirectory().path + "/" + pathSections.last()
+    }}
+
+    return null
+}
+
+class Callback(
+    private val aborts: MutableState<Int>,
+    private val found: MutableState<Int>,
+    private val done: MutableState<Int>
+): iroh.DocImportFileCallback {
+    override suspend fun progress(progress: iroh.DocImportProgress) {
+        Log.d(null, progress.type().toString())
+
+        when (progress.type()) {
+            iroh.DocImportProgressType.ABORT -> run {
+                val abort = progress.asAbort()
+                Log.d(null, abort.error)
+                aborts.value += 1
+            }
+            iroh.DocImportProgressType.ALL_DONE -> run {
+                done.value ++
+            }
+            iroh.DocImportProgressType.FOUND -> run {
+                found.value ++
+            }
+            else -> {}
+        }
+    }
+}
+
+@Composable
+fun Document(backend: Backend, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
+    val node = backend.node()
+
+    val clipboardManager = LocalClipboardManager.current
+
+    val doc = remember {
+        mutableStateOf<iroh.Doc?>(null)
+    }
+
+    LaunchedEffect(Unit) {
+        doc.value = node.docOpen(document.namespace)
+    }
+
+    val scope = rememberCoroutineScope()
+
+    val sources = remember {
+        mutableStateOf(backend.sourcesForDocument(document.namespace))
+    }
+
+    val directoryIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+
+    val aborts = remember {
+        mutableIntStateOf(0)
+    }
+
+    val done = remember {
+        mutableIntStateOf(0)
+    }
+
+    val found = remember {
+        mutableIntStateOf(0)
+    }
+
+    doc.value?.also  { doc -> run {
+        val import = {
+            thread {
+                scope.launch {
+                    backend.addFileTree(doc, document.namespace, node.authorDefault(), true, Callback(aborts, found, done))
+                }
+            }
+        }
+
+        val directoryPicker = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            result.data?.data?.also { uri -> run {
+                backend.addSourceToDocument(document.namespace, uriToRealPath(uri).toString())
+                sources.value = backend.sourcesForDocument(document.namespace)
+                import()
+            }}
+        }
+
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(document.namespace.take(16) + "..")
+                Text(document.capability.toString())
+                Text("${found.intValue} / ${done.intValue} (${aborts.intValue})")
+            }
+            sources.value.forEach { source -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(source)
+                IconButton(onClick = {
+                    backend.removeSourceFromDocument(document.namespace, source)
+                    sources.value = backend.sourcesForDocument(document.namespace)
+                }) {
+                    Icon(Icons.Default.Close, null)
+                }
+            }}
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(onClick = {
+                    directoryPicker.launch(directoryIntent)
+                }) {
+                    Text("Add Source")
+                }
+                IconButton(onClick = {
+                    scope.launch {
+                        val ticket = doc.share(
+                            iroh.ShareMode.WRITE,
+                            iroh.AddrInfoOptions.RELAY_AND_ADDRESSES
+                        )
+                        clipboardManager.setText(AnnotatedString(ticket))
+                    }
+                }) {
+                    Icon(Icons.Default.Share, null)
+                }
+                IconButton(onClick = {
+                    scope.launch {
+                        node.docDrop(document.namespace)
+                        onDelete()
+                    }
+                }) {
+                    Icon(Icons.Default.Close, null)
+                }
+                IconButton(onClick = {
+                    import()
+                }) {
+                    Icon(Icons.Default.Refresh, null)
+                }
+            }
+        }
+    }}
+}
+
+@Composable
+fun Docs(backend: Backend) {
+    val node = backend.node()
+
+    val documents = remember { mutableStateOf<List<iroh.NamespaceAndCapability>>(listOf())}
+
+    LaunchedEffect(Unit) {
+        documents.value = node.docList()
+    }
+
+    Text(
+        text = "Documents",
+        style = typography.headlineMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
+    documents.value.forEach { document ->
+        run {
+            Document(backend, document, onDelete = {
+                documents.value = node.docList()
+            })
+        }
+    }
+
+    val scope = rememberCoroutineScope()
+
+    Row {
+        Button(onClick = {scope.launch {
+            node.docCreate()
+            documents.value = node.docList()
+        }}) {
+            Text("New Document")
+        }
+    }
+}
+
+/*
 @Composable
 fun Authors(node: IrohNode) {
     val authors = remember { mutableStateOf<List<AuthorId>>(listOf())}
@@ -262,193 +439,4 @@ fun Authors(node: IrohNode) {
         Text("New Author")
     }
 }
-
-fun uriToRealPath(uri: Uri): String? {
-    uri.path?.also { path -> run {
-        val pathSections = path.split(":")
-        return Environment.getExternalStorageDirectory().path + "/" + pathSections.last()
-    }}
-
-    return null
-}
-
-class Callback(
-    private val aborts: MutableState<Int>,
-    private val found: MutableState<Int>,
-    private val done: MutableState<Int>
-): iroh.DocImportFileCallback {
-    override suspend fun progress(progress: iroh.DocImportProgress) {
-        Log.d(null, progress.type().toString())
-
-        when (progress.type()) {
-            iroh.DocImportProgressType.ABORT -> run {
-                val abort = progress.asAbort()
-                Log.d(null, abort.error)
-                aborts.value += 1
-            }
-            iroh.DocImportProgressType.ALL_DONE -> run {
-                done.value ++
-            }
-            iroh.DocImportProgressType.FOUND -> run {
-                found.value ++
-            }
-            else -> {}
-        }
-    }
-}
-
-@Composable
-fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
-    val node = backend.node()
-
-    val clipboardManager = LocalClipboardManager.current
-    val context = LocalContext.current
-
-    val doc = remember {
-        mutableStateOf<iroh.Doc?>(null)
-    }
-
-    LaunchedEffect(Unit) {
-        doc.value = node.docOpen(document.namespace)
-    }
-
-    val scope = rememberCoroutineScope()
-
-    val sources = remember {
-        mutableStateListOf<DocumentFile>()
-    }
-
-    val directoryIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-
-    val aborts = remember {
-        mutableIntStateOf(0)
-    }
-
-    val done = remember {
-        mutableIntStateOf(0)
-    }
-
-    val found = remember {
-        mutableIntStateOf(0)
-    }
-
-    doc.value?.also  { doc -> run {
-        val import = { source: DocumentFile ->
-            thread {
-                scope.launch {
-                    backend.addFileTree(doc, defaultAuthor, uriToRealPath(source.uri).toString(), true, Callback(aborts, found, done))
-                }
-            }
-        }
-
-        val directoryPicker = rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            result.data?.data?.also { data -> run {
-                // https://stackoverflow.com/a/74683972
-                val documentFile = DocumentFile.fromTreeUri(context, data)
-                documentFile?.let {
-                    sources.add(documentFile)
-                    import(documentFile)
-                }
-            }}
-        }
-
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(document.namespace.take(16) + "..")
-                Text(document.capability.toString())
-                Text("${found.intValue} / ${done.intValue} (${aborts.intValue})")
-            }
-            sources.forEach { source -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(source.name.toString())
-                IconButton(onClick = {
-                    import(source)
-                }) {
-                    Icon(Icons.Default.Refresh, null)
-                }
-                IconButton(onClick = { sources.remove(source) }) {
-                    Icon(Icons.Default.Close, null)
-                }
-            }}
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Button(onClick = {
-                    directoryPicker.launch(directoryIntent)
-                }) {
-                    Text("Add Source")
-                }
-                IconButton(onClick = {
-                    scope.launch {
-                        val ticket = doc.share(
-                            iroh.ShareMode.WRITE,
-                            iroh.AddrInfoOptions.RELAY_AND_ADDRESSES
-                        )
-                        clipboardManager.setText(AnnotatedString(ticket))
-                    }
-                }) {
-                    Icon(Icons.Default.Share, null)
-                }
-                IconButton(onClick = {
-                    scope.launch {
-                        node.docDrop(document.namespace)
-                        onDelete()
-                    }
-                }) {
-                    Icon(Icons.Default.Close, null)
-                }
-            }
-        }
-    }}
-}
-
-@Composable
-fun Docs(backend: Backend) {
-    val node = backend.node()
-
-    val documents = remember { mutableStateOf<List<iroh.NamespaceAndCapability>>(listOf())}
-    val defaultAuthor = remember {
-        mutableStateOf<AuthorId?>(null)
-    }
-
-    LaunchedEffect(Unit) {
-            documents.value = node.docList()
-        defaultAuthor.value = node.authorDefault()
-
-    }
-
-    defaultAuthor.value?.also { defaultAuthor ->
-        run {
-            Text(
-                text = "Documents",
-                style = typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            documents.value.forEach { document ->
-                run {
-                    Document(backend, defaultAuthor, document, onDelete = {
-                        documents.value = node.docList()
-                    })
-                }
-            }
-        }
-    }
-
-    val scope = rememberCoroutineScope()
-
-    Row {
-        Button(onClick = {scope.launch {
-            node.docCreate()
-            documents.value = node.docList()
-        }}) {
-            Text("New Document")
-        }
-    }
-}
+*/

@@ -106,17 +106,18 @@
           ) rust-targets
         );
 
-        uniffi = crane-lib.buildPackage {
-          src = ./uniffi-bindgen;
-        };
+        uniffi = crane-lib.buildPackage { src = ./uniffi-bindgen; };
 
-        kotlin-bindings = pkgs.runCommand "kotlin-bindings" {
-          nativeBuildInputs = [rust-toolchain];
-          CARGO_HOME = crane-lib.vendorCargoDeps {cargoLock = "${iroh-ffi-src}/Cargo.lock";};
-        } ''
-          cd ${iroh-ffi-src}
-          ${uniffi}/bin/uniffi-bindgen generate --library ${all-builds.x86_64}/lib/*.so --language kotlin --out-dir $out
-        '';
+        kotlin-bindings =
+          pkgs.runCommand "kotlin-bindings"
+            {
+              nativeBuildInputs = [ rust-toolchain ];
+              CARGO_HOME = crane-lib.vendorCargoDeps { cargoLock = "${iroh-ffi-src}/Cargo.lock"; };
+            }
+            ''
+              cd ${iroh-ffi-src}
+              ${uniffi}/bin/uniffi-bindgen generate --library ${all-builds.x86_64}/lib/*.so --language kotlin --out-dir $out
+            '';
 
         clean-src-filter = (
           name: _type:
@@ -181,7 +182,9 @@
             }/share/android-sdk";
             overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = ./gradle.lock; };
           };
-          x86_64-only = { inherit (all-builds) x86_64; };
+        x86_64-only = {
+          inherit (all-builds) x86_64;
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -198,35 +201,47 @@
           '';
         };
 
-        packages = let
-          aarch64-only = { inherit (all-builds) arm64-v8a; };
-          keystore-password = "android";
-        in rec {
-          inherit uniffi kotlin-bindings;
+        packages =
+          let
+            aarch64-only = {
+              inherit (all-builds) arm64-v8a;
+            };
+            keystore-password = "android";
+          in
+          rec {
+            inherit uniffi kotlin-bindings;
 
-          keystore = pkgs.runCommand "keystore.keystore" { } ''
-            mkdir $out
-            ${pkgs.openjdk}/bin/keytool -genkey -v -keystore $out/keystore.keystore -storepass ${keystore-password} -alias \
-            androiddebugkey -keypass ${keystore-password} -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA \
-            -keysize 2048 -validity 10000
-          '';
+            keystore = pkgs.runCommand "keystore.keystore" { } ''
+              mkdir $out
+              ${pkgs.openjdk}/bin/keytool -genkey -v -keystore $out/keystore.keystore -storepass ${keystore-password} -alias \
+              androiddebugkey -keypass ${keystore-password} -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA \
+              -keysize 2048 -validity 10000
+            '';
 
-          emu-jni-libs = jni-libs-for-builds x86_64-only;
-          app-jni-libs = jni-libs-for-builds aarch64-only;
-          app = apk-for-rust-builds aarch64-only;
-          signed-app = pkgs.runCommand "signed-apk" { } ''
-            cp ${app}/release/app-release-unsigned.apk .
-            chmod +w app-release-unsigned.apk
-            mkdir $out
-            ${build-tools}/apksigner sign --ks ${keystore}/keystore.keystore \
-            --ks-pass pass:${keystore-password} app-release-unsigned.apk
-            mv app-release-unsigned.apk $out/app-release.apk
-          '';
-          universal-app = apk-for-rust-builds all-builds;
-          install-release = pkgs.writeShellScriptBin "install-release" ''
-            adb install ${signed-app}/app-release.apk
-          '';
-        };
+            emu-jni-libs = jni-libs-for-builds x86_64-only;
+            app-jni-libs = jni-libs-for-builds aarch64-only;
+            app = apk-for-rust-builds aarch64-only;
+            signed-app = pkgs.runCommand "signed-apk" { } ''
+              cp ${app}/release/app-release-unsigned.apk .
+              chmod +w app-release-unsigned.apk
+              mkdir $out
+              ${build-tools}/apksigner sign --ks ${keystore}/keystore.keystore \
+              --ks-pass pass:${keystore-password} app-release-unsigned.apk
+              mv app-release-unsigned.apk $out/app-release.apk
+            '';
+            universal-app = apk-for-rust-builds all-builds;
+            install-release = pkgs.writeShellScriptBin "install-release" ''
+              adb install ${signed-app}/app-release.apk
+            '';
+            app-bundle =
+              (apk-for-rust-builds x86_64-only).overrideAttrs
+                (_: {
+                  gradleBuildFlags = ["bundleRelease"];
+                  postBuild = ''
+                    mv app/build/outputs/bundle $out
+                  '';
+                });
+          };
       }
     );
 }
