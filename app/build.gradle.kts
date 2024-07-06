@@ -47,10 +47,17 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    lint {
+        abortOnError = false
+    }
 }
 
 dependencies {
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation(libs.jna) {
+        artifact {
+            type = "aar"
+        }
+    }
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

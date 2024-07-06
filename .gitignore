@@ -9,6 +9,7 @@
 .cxx
 local.properties
 result
+uniffi-bindgen/target
 
 app/src/main/java/uniffi
 app/src/main/jniLibs
