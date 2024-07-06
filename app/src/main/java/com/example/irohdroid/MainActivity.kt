@@ -30,6 +30,8 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,7 +46,6 @@ import androidx.documentfile.provider.DocumentFile
 import iroh.AuthorId
 import iroh.Backend
 import iroh.IrohNode
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -271,7 +272,11 @@ fun uriToRealPath(uri: Uri): String? {
     return null
 }
 
-class Callback: iroh.DocImportFileCallback {
+class Callback(
+    private val aborts: MutableState<Int>,
+    private val found: MutableState<Int>,
+    private val done: MutableState<Int>
+): iroh.DocImportFileCallback {
     override suspend fun progress(progress: iroh.DocImportProgress) {
         Log.d(null, progress.type().toString())
 
@@ -279,26 +284,18 @@ class Callback: iroh.DocImportFileCallback {
             iroh.DocImportProgressType.ABORT -> run {
                 val abort = progress.asAbort()
                 Log.d(null, abort.error)
+                aborts.value += 1
+            }
+            iroh.DocImportProgressType.ALL_DONE -> run {
+                done.value ++
+            }
+            iroh.DocImportProgressType.FOUND -> run {
+                found.value ++
             }
             else -> {}
         }
     }
 }
-
-suspend fun importDirectoryFile(doc: iroh.Doc, defaultAuthor: AuthorId, source: DocumentFile, scope: CoroutineScope) {
-    if (source.isFile) {
-        Log.d(null, "${source.uri} ${source.canRead()}")
-        val path = uriToRealPath(source.uri).toString()
-        Log.d(null, "${File(path)} ${File(path).canRead()}")
-        Log.d(null, path)
-        doc.importFile(defaultAuthor, path.toByteArray(), path, true, Callback())
-    } else if (source.isDirectory) {
-        for (child in source.listFiles()) {
-            importDirectoryFile(doc, defaultAuthor, child, scope)
-        }
-    }
-}
-
 
 @Composable
 fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.NamespaceAndCapability, onDelete: suspend () -> Unit) {
@@ -309,10 +306,6 @@ fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.Namespace
 
     val doc = remember {
         mutableStateOf<iroh.Doc?>(null)
-    }
-
-    val entries = remember {
-        mutableStateOf<List<iroh.Entry>>(listOf())
     }
 
     LaunchedEffect(Unit) {
@@ -327,12 +320,23 @@ fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.Namespace
 
     val directoryIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
+    val aborts = remember {
+        mutableIntStateOf(0)
+    }
+
+    val done = remember {
+        mutableIntStateOf(0)
+    }
+
+    val found = remember {
+        mutableIntStateOf(0)
+    }
+
     doc.value?.also  { doc -> run {
         val import = { source: DocumentFile ->
             thread {
                 scope.launch {
-                    backend.addFileTree(doc, defaultAuthor, uriToRealPath(source.uri).toString(), true, Callback())
-                    entries.value = doc.getMany(iroh.Query.all(null))
+                    backend.addFileTree(doc, defaultAuthor, uriToRealPath(source.uri).toString(), true, Callback(aborts, found, done))
                 }
             }
         }
@@ -350,10 +354,6 @@ fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.Namespace
             }}
         }
 
-        LaunchedEffect(Unit) {
-            entries.value = doc.getMany(iroh.Query.all(null))
-        }
-
         Column {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -361,7 +361,7 @@ fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.Namespace
             ) {
                 Text(document.namespace.take(16) + "..")
                 Text(document.capability.toString())
-                Text(entries.value.size.toString())
+                Text("${found.intValue} / ${done.intValue} (${aborts.intValue})")
             }
             sources.forEach { source -> Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -403,13 +403,6 @@ fun Document(backend: Backend, defaultAuthor: AuthorId, document: iroh.Namespace
                     }
                 }) {
                     Icon(Icons.Default.Close, null)
-                }
-                IconButton(onClick = {
-                    scope.launch {
-                        entries.value = doc.getMany(iroh.Query.all(null))
-                    }
-                }) {
-                    Icon(Icons.Default.Refresh, null)
                 }
             }
         }

@@ -149,7 +149,7 @@
             jniLibs = jni-libs-for-builds rust-builds;
 
             src-overlay = pkgs.runCommand "src-overlay" { } ''
-              mkdir -p $out/app/src/main
+              mkdir -p $out/app/src/main/java
               ln -s ${jniLibs} $out/app/src/main/jniLibs
               ln -s ${kotlin-bindings} $out/app/src/main/java/uniffi
             '';
