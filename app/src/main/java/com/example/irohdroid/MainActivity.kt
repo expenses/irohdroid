@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,8 +29,8 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.MutableLongState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -219,27 +218,20 @@ fun uriToRealPath(uri: Uri): String? {
 }
 
 class Callback(
-    private val aborts: MutableState<Int>,
-    private val found: MutableState<Int>,
-    private val done: MutableState<Int>
-): iroh.DocImportFileCallback {
-    override suspend fun progress(progress: iroh.DocImportProgress) {
-        Log.d(null, progress.type().toString())
+    private val progress: MutableLongState,
+    private val toUpdate: MutableLongState,
+    private val total: MutableLongState
+): iroh.ImportTreeCallback {
+    override suspend fun progress() {
+        progress.longValue++
+    }
 
-        when (progress.type()) {
-            iroh.DocImportProgressType.ABORT -> run {
-                val abort = progress.asAbort()
-                Log.d(null, abort.error)
-                aborts.value += 1
-            }
-            iroh.DocImportProgressType.ALL_DONE -> run {
-                done.value ++
-            }
-            iroh.DocImportProgressType.FOUND -> run {
-                found.value ++
-            }
-            else -> {}
-        }
+    override suspend fun toUpdate(total: ULong) {
+        toUpdate.longValue = total.toLong()
+    }
+
+    override suspend fun total(total: ULong) {
+        this.total.longValue = total.toLong()
     }
 }
 
@@ -265,23 +257,25 @@ fun Document(backend: Backend, document: iroh.NamespaceAndCapability, onDelete: 
 
     val directoryIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
-    val aborts = remember {
-        mutableIntStateOf(0)
+    val total = remember {
+        mutableLongStateOf(0)
     }
 
-    val done = remember {
-        mutableIntStateOf(0)
+    val progress = remember {
+        mutableLongStateOf(0)
     }
 
-    val found = remember {
-        mutableIntStateOf(0)
+    val toUpdate = remember {
+        mutableLongStateOf(0)
     }
 
     doc.value?.also  { doc -> run {
         val import = {
             thread {
                 scope.launch {
-                    backend.addFileTree(doc, document.namespace, node.authorDefault(), true, Callback(aborts, found, done))
+                    progress.longValue = 0
+                    toUpdate.longValue = 0
+                    backend.addFileTree(doc, document.namespace, node.authorDefault(), true, Callback(progress, toUpdate, total))
                 }
             }
         }
@@ -302,8 +296,8 @@ fun Document(backend: Backend, document: iroh.NamespaceAndCapability, onDelete: 
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(document.namespace.take(16) + "..")
-                Text(document.capability.toString())
-                Text("${found.intValue} / ${done.intValue} (${aborts.intValue})")
+                Text("${progress.longValue} / ${toUpdate.longValue}")
+                Text(total.longValue.toString())
             }
             sources.value.forEach { source -> Row(
                 verticalAlignment = Alignment.CenterVertically,

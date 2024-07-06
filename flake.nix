@@ -108,7 +108,10 @@
 
         uniffi = crane-lib.buildPackage { src = ./uniffi-bindgen; };
 
-        kotlin-bindings =
+        # The bindings are the same regardless of what build is used, but
+        # paramatizing it means that we don't need to build either the aarch64 or x86_64 build redundantly
+        # to being either the emulator or device apk.
+        kotlin-bindings-for = rust-build:
           pkgs.runCommand "kotlin-bindings"
             {
               nativeBuildInputs = [ rust-toolchain ];
@@ -116,7 +119,7 @@
             }
             ''
               cd ${iroh-ffi-src}
-              ${uniffi}/bin/uniffi-bindgen generate --library ${all-builds.x86_64}/lib/*.so --language kotlin --out-dir $out
+              ${uniffi}/bin/uniffi-bindgen generate --library ${rust-build}/lib/*.so --language kotlin --out-dir $out
             '';
 
         clean-src-filter = (
@@ -152,7 +155,7 @@
             src-overlay = pkgs.runCommand "src-overlay" { } ''
               mkdir -p $out/app/src/main/java
               ln -s ${jniLibs} $out/app/src/main/jniLibs
-              ln -s ${kotlin-bindings} $out/app/src/main/java/uniffi
+              ln -s ${kotlin-bindings-for all-builds.arm64-v8a} $out/app/src/main/java/uniffi
             '';
 
             full-src = pkgs.symlinkJoin {
@@ -197,7 +200,7 @@
             rm app/src/main/jniLibs
             ln -s ${jni-libs-for-builds x86_64-only} app/src/main/jniLibs
             rm app/src/main/java/uniffi
-            ln -s ${kotlin-bindings} app/src/main/java/uniffi
+            ln -s ${kotlin-bindings-for all-builds.x86_64} app/src/main/java/uniffi
           '';
         };
 
@@ -209,7 +212,7 @@
             keystore-password = "android";
           in
           rec {
-            inherit uniffi kotlin-bindings;
+            inherit uniffi;
 
             keystore = pkgs.runCommand "keystore.keystore" { } ''
               mkdir $out
