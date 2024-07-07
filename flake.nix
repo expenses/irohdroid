@@ -41,11 +41,12 @@
           url = "https://github.com/Lzhiyong/termux-ndk/releases/download/android-sdk/android-sdk-aarch64.zip";
           hash = "sha256-9xlcsk+dYr4K8rAXYqpVlGmqf2/8h/rAfUNZqf8+2Bw=";
         };
-        build-tools = pkgs.fetchzip {
+        old-build-tools = pkgs.fetchzip {
           url = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r26b-aarch64.zip";
           stripRoot = false;
           hash = "sha256-IKrhkxV8YjzHPSx5CyZS5H9WDWBTzA7IEKh8QWloEWs=";
         };
+        build-tools = "${android-sdk}/build-tools/34.0.0";
 
         android-abi = "29";
 
@@ -185,7 +186,10 @@
             lockFile = ./gradle.lock;
             src = full-src;
             version = "0.1.0";
-            gradleBuildFlags = [ "build" "-Dorg.gradle.project.android.aapt2FromMavenOverride=${build-tools}/build-tools/aapt2"];
+            gradleBuildFlags = [
+              "build"
+              "-Dorg.gradle.project.android.aapt2FromMavenOverride=${build-tools}/aapt2"
+            ];
             postBuild = ''
               mv app/build/outputs/apk $out
             '';
@@ -236,8 +240,7 @@
               cp ${app}/release/app-release-unsigned.apk .
               chmod +w app-release-unsigned.apk
               mkdir $out
-              ${android-sdk}/build-tools/34.0.0/apksigner sign --ks ${keystore}/keystore.keystore \
-              echo ${android-sdk}/build-tools/34.0.0/apksigner sign --ks ${keystore}/keystore.keystore \
+              ${build-tools}/apksigner sign --ks ${keystore}/keystore.keystore \
               --ks-pass pass:${keystore-password} app-release-unsigned.apk
               mv app-release-unsigned.apk $out/app-release.apk
             '';
