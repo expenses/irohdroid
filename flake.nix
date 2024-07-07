@@ -33,9 +33,19 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        ndk-bundle = pkgs.fetchzip {url = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r26b-aarch64.zip"; hash = "sha256-W5NOlirVqba1DDOwIaknL3P9bK088PdfGfvW+nt7r8E";};
-        build-tools = pkgs.fetchzip {url ="https://github.com/lzhiyong/android-sdk-tools/releases/download/34.0.3/android-sdk-tools-static-aarch64.zip"; stripRoot = false; hash="sha256-IKrhkxV8YjzHPSx5CyZS5H9WDWBTzA7IEKh8QWloEWs=";};
-
+        ndk-bundle = pkgs.fetchzip {
+          url = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r26b-aarch64.zip";
+          hash = "sha256-W5NOlirVqba1DDOwIaknL3P9bK088PdfGfvW+nt7r8E";
+        };
+        android-sdk = pkgs.fetchzip {
+          url = "https://github.com/Lzhiyong/termux-ndk/releases/download/android-sdk/android-sdk-aarch64.zip";
+          hash = "sha256-9xlcsk+dYr4K8rAXYqpVlGmqf2/8h/rAfUNZqf8+2Bw=";
+        };
+        build-tools = pkgs.fetchzip {
+          url = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r26b-aarch64.zip";
+          stripRoot = false;
+          hash = "sha256-IKrhkxV8YjzHPSx5CyZS5H9WDWBTzA7IEKh8QWloEWs=";
+        };
 
         android-abi = "29";
 
@@ -102,13 +112,16 @@
                 CARGO_BUILD_TARGET = triple;
                 "CC_${triple}" = clang-path;
                 "CARGO_TARGET_${triple-upper}_LINKER" = clang-path;
-doNotRemoveReferencesToVendorDir = true;
+                doNotRemoveReferencesToVendorDir = true;
               };
             }
           ) rust-targets
         );
 
-        uniffi = crane-lib.buildPackage { src = ./uniffi-bindgen; doNotRemoveReferencesToVendorDir = true; };
+        uniffi = crane-lib.buildPackage {
+          src = ./uniffi-bindgen;
+          doNotRemoveReferencesToVendorDir = true;
+        };
 
         # The bindings are the same regardless of what build is used, but
         # paramatizing it means that we don't need to build either the aarch64 or x86_64 build redundantly
@@ -172,24 +185,23 @@ doNotRemoveReferencesToVendorDir = true;
             lockFile = ./gradle.lock;
             src = full-src;
             version = "0.1.0";
-            gradleBuildFlags = [ "build" ];
+            gradleBuildFlags = [ "build" "-Dorg.gradle.project.android.aapt2FromMavenOverride=${build-tools}/build-tools/aapt2"];
             postBuild = ''
               mv app/build/outputs/apk $out
             '';
-            ANDROID_HOME = "${
-              build-tools
-            }";
-            overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = ./gradle.lock; };
+            ANDROID_HOME = "${android-sdk}";
+            #overrides = pkgs.callPackage ./nix/patch-aapt2.nix { gradleLock = ./gradle.lock; };
           };
         x86_64-only = {
           inherit (all-builds) x86_64;
         };
-            aarch64-only = {
-              inherit (all-builds) arm64-v8a;
-            };
+        aarch64-only = {
+          inherit (all-builds) arm64-v8a;
+        };
       in
       {
         devShells.default = pkgs.mkShell {
+          ANDROID_HOME = "${android-sdk}";
           nativeBuildInputs = [
             gradle2nix
             pkgs.openjdk
@@ -197,9 +209,9 @@ doNotRemoveReferencesToVendorDir = true;
 
           shellHook = ''
             rm app/src/main/jniLibs
-            ln -s ${jni-libs-for-builds {inherit (all-builds) arm64-v8a;}} app/src/main/jniLibs
+            ln -s ${jni-libs-for-builds aarch64-only} app/src/main/jniLibs
             rm app/src/main/java/uniffi
-            ln -s ${kotlin-bindings-for aarch64-only.arm64-v8a} app/src/main/java/uniffi
+            ln -s ${kotlin-bindings-for all-builds.arm64-v8a} app/src/main/java/uniffi
           '';
         };
 
@@ -208,7 +220,7 @@ doNotRemoveReferencesToVendorDir = true;
             keystore-password = "android";
           in
           rec {
-            inherit uniffi;
+            inherit uniffi android-sdk build-tools;
 
             keystore = pkgs.runCommand "keystore.keystore" { } ''
               mkdir $out
@@ -224,7 +236,8 @@ doNotRemoveReferencesToVendorDir = true;
               cp ${app}/release/app-release-unsigned.apk .
               chmod +w app-release-unsigned.apk
               mkdir $out
-              ${build-tools}/apksigner sign --ks ${keystore}/keystore.keystore \
+              ${android-sdk}/build-tools/34.0.0/apksigner sign --ks ${keystore}/keystore.keystore \
+              echo ${android-sdk}/build-tools/34.0.0/apksigner sign --ks ${keystore}/keystore.keystore \
               --ks-pass pass:${keystore-password} app-release-unsigned.apk
               mv app-release-unsigned.apk $out/app-release.apk
             '';
