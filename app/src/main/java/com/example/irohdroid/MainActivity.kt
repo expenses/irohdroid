@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
@@ -55,19 +56,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(15.dp),
                 ) {
-                    Text(
-                        text = "Irohdroid",
-                        style = typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    PermissionsCheck()
-
-                    Node(filesDir)
+                    item {
+                        Text(
+                            text = "Irohdroid",
+                            style = typography.headlineLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    item {
+                        PermissionsCheck()
+                    }
+                    item {
+                        Node(filesDir)
+                    }
                 }
             }
         }
@@ -129,7 +135,10 @@ fun formatOptDuration(duration: Duration?): Float? {
 
 @Composable
 fun NodeInfo(node: IrohNode) {
-    val id = node.nodeId()
+    val id = remember {
+        mutableStateOf("")
+    }
+
     val clipboardManager = LocalClipboardManager.current
 
     val status = remember {
@@ -141,6 +150,7 @@ fun NodeInfo(node: IrohNode) {
     }
 
     LaunchedEffect(Unit) {
+        id.value = node.nodeId()
         status.value = node.status()
     }
 
@@ -160,10 +170,10 @@ fun NodeInfo(node: IrohNode) {
         Button(
             modifier = Modifier.defaultMinSize(minWidth = 1.dp, minHeight = 1.dp),
             onClick = {
-                clipboardManager.setText(AnnotatedString(id))
+                clipboardManager.setText(AnnotatedString(id.value))
             }
         ) {
-            Text(id.take(16) + "..")
+            Text(id.value.take(16) + "..")
         }
     }
 
@@ -226,8 +236,8 @@ class Callback(
         progress.longValue++
     }
 
-    override suspend fun toUpdate(total: ULong) {
-        toUpdate.longValue = total.toLong()
+    override suspend fun toUpdate(toUpdate: ULong) {
+        this.toUpdate.longValue = toUpdate.toLong()
     }
 
     override suspend fun total(total: ULong) {
