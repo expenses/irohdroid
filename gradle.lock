@@ -317,28 +317,52 @@
       "hash": "sha256-D/ztbEm6NDT3ne6RJsqV6WrHo/2o28M36X2af58eJtc="
     }
   },
-  "androidx.compose.material:material-icons-core:1.6.8": {
-    "material-icons-core-1.6.8.module": {
-      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core/1.6.8/material-icons-core-1.6.8.module",
-      "hash": "sha256-6hrKod/UiNbKstnWRQEIkueEsQtZKtvoKQxaiqrxlE4="
+  "androidx.compose.material:material-icons-core:1.7.0-beta05": {
+    "material-icons-core-1.7.0-beta05.module": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core/1.7.0-beta05/material-icons-core-1.7.0-beta05.module",
+      "hash": "sha256-+2Xqvd2D8Tl8R2F2MqWqeqFY/fqXjON54yS4dTvd4Tg="
     },
-    "material-icons-core-1.6.8.pom": {
-      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core/1.6.8/material-icons-core-1.6.8.pom",
-      "hash": "sha256-/3ijEY1L03MdMvFM/dIiqwaDGQ5sxR9ESUixyWOOlkw="
+    "material-icons-core-1.7.0-beta05.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core/1.7.0-beta05/material-icons-core-1.7.0-beta05.pom",
+      "hash": "sha256-mctFo0MWZCrtOqjOkxrgU/8XiM6Twv8kl7ZbQFTmA0w="
     }
   },
-  "androidx.compose.material:material-icons-core-android:1.6.8": {
-    "material-icons-core-android-1.6.8.aar": {
-      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.6.8/material-icons-core-android-1.6.8.aar",
-      "hash": "sha256-bkmUKsYQR/GEBudGkOwwScQ/I/7KUDVDhJsDBbulk/4="
+  "androidx.compose.material:material-icons-core-android:1.7.0-beta05": {
+    "material-icons-core-android-1.7.0-beta05.aar": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.7.0-beta05/material-icons-core-android-1.7.0-beta05.aar",
+      "hash": "sha256-RkSd52YrFCXKVlZ/7Rk2H3EN7SRdS2/uhemb8koCbUM="
     },
-    "material-icons-core-android-1.6.8.module": {
-      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.6.8/material-icons-core-android-1.6.8.module",
-      "hash": "sha256-jgVA+wndOkgxaEiMzuxIBuTMCnlGNUpkxyxh5j/UFf8="
+    "material-icons-core-android-1.7.0-beta05.module": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.7.0-beta05/material-icons-core-android-1.7.0-beta05.module",
+      "hash": "sha256-k8jo5s7/ffFagYasBsTT/SaJNQS27H6MA/qHjuCEja4="
     },
-    "material-icons-core-android-1.6.8.pom": {
-      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.6.8/material-icons-core-android-1.6.8.pom",
-      "hash": "sha256-KpyPDWkizEX10NEz7BcbWw/Qp04PE+miSeROUL3Uf8Q="
+    "material-icons-core-android-1.7.0-beta05.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-core-android/1.7.0-beta05/material-icons-core-android-1.7.0-beta05.pom",
+      "hash": "sha256-49B9MjAv40phKRrU4fsXEVfpRsVEWzIhaGLsHbENxMQ="
+    }
+  },
+  "androidx.compose.material:material-icons-extended:1.7.0-beta05": {
+    "material-icons-extended-1.7.0-beta05.module": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-extended/1.7.0-beta05/material-icons-extended-1.7.0-beta05.module",
+      "hash": "sha256-jxa2ROFbqvrlSNQp1eckqdYmvnkephZb77EhZgg5XyA="
+    },
+    "material-icons-extended-1.7.0-beta05.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-extended/1.7.0-beta05/material-icons-extended-1.7.0-beta05.pom",
+      "hash": "sha256-EDJCawhVnfAxecVFHYPOZ5ZCC2F0NmD6qw0+YtHISok="
+    }
+  },
+  "androidx.compose.material:material-icons-extended-android:1.7.0-beta05": {
+    "material-icons-extended-android-1.7.0-beta05.aar": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-extended-android/1.7.0-beta05/material-icons-extended-android-1.7.0-beta05.aar",
+      "hash": "sha256-4bMlyzjz9eAN8hUjjwU9k1KDSqxjnYGvLbKwiNEtfnU="
+    },
+    "material-icons-extended-android-1.7.0-beta05.module": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-extended-android/1.7.0-beta05/material-icons-extended-android-1.7.0-beta05.module",
+      "hash": "sha256-asIRxUf5Vajyxp4ixvQ7YEMRCkyCalGc6sAY0jDS8BM="
+    },
+    "material-icons-extended-android-1.7.0-beta05.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/androidx/compose/material/material-icons-extended-android/1.7.0-beta05/material-icons-extended-android-1.7.0-beta05.pom",
+      "hash": "sha256-WTkMkkAvkaJqNuGI2OlizDAl6hdocKuvgUMir1a3w8U="
     }
   },
   "androidx.compose.material:material-ripple:1.6.8": {
