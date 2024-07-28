@@ -31,7 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableLongState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import iroh.Backend
-import iroh.IrohNode
+import iroh.Iroh
 import iroh.ShareMode
+import iroh.UpdateStatus
 import kotlinx.coroutines.launch
 
 
@@ -96,7 +97,7 @@ fun AddSourceButton(backend: Backend, namespace: String, onUpdate: () -> Unit) {
 }
 
 @Composable
-fun ShareButton(node: IrohNode, namespace: String) {
+fun ShareButton(node: Iroh, namespace: String) {
     val scope = rememberCoroutineScope()
     var dialogOpen by remember {
         mutableStateOf(false)
@@ -116,7 +117,7 @@ fun ShareButton(node: IrohNode, namespace: String) {
     val onUpdate = {
         dialogOpen = true
         scope.launch {
-            val doc = node.docOpen(namespace)
+            val doc = node.docs().open(namespace)
             doc?.share(
                 if (shareWrite) ShareMode.WRITE else ShareMode.READ,
                 iroh.AddrInfoOptions.RELAY_AND_ADDRESSES
@@ -233,25 +234,25 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
         mutableLongStateOf(backend.numFilesForDocument(namespace).toLong())
     }
 
-    val progress = remember {
-        mutableLongStateOf(0)
-    }
-
-    val toUpdate = remember {
-        mutableLongStateOf(0)
+    val status = remember {
+        mutableStateOf(UpdateStatus(
+            found = 0u,
+            updated = 0u
+    ))
     }
 
     @Suppress("NAME_SHADOWING")
     val update = {
         scope.launch {
-            val doc = node.docOpen(namespace)
+            val doc = node.docs().open(namespace)
             doc?.also {
                     doc -> run {
-                backend.addFileTree(doc, namespace, node.authorDefault(),
+                backend.addFileTree(doc, namespace, node.authors().default(),
                     inPlace = true,
                     recheck = false,
-                    cb = Callback(progress, toUpdate, totalFiles)
+                    cb = Callback(status)
                 )
+                totalFiles.longValue = backend.numFilesForDocument(namespace).toLong()
             }
             }
         }
@@ -270,8 +271,8 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
                         Icons.Default.FilePresent,
                         totalFiles.longValue.toString()
                     )
-                    if (toUpdate.longValue != 0.toLong()) {
-                        InlineIcon(Icons.Default.FileDownloadDone, "${progress.longValue}/${toUpdate.longValue}")
+                    if (status.value.found != 0u.toULong()) {
+                        InlineIcon(Icons.Default.FileDownloadDone, "${status.value.updated}/${status.value.found}")
                     }
                 }
             }
@@ -282,7 +283,7 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
             })
             SimpleIconButton(icon = Icons.Default.Close) {
                 scope.launch {
-                    node.docDrop(namespace)
+                    node.docs().dropDoc(namespace)
                     onUpdate()
                 }
             }
@@ -312,26 +313,16 @@ fun Documents(backend: Backend, documents: List<iroh.NamespaceAndCapability>, on
         }
     }
     SimpleIconButton(icon = Icons.Default.Add) {
-        scope.launch { backend.node().docCreate()
+        scope.launch { backend.node().docs().create()
             onUpdate()}
     }
 }
 
 
 class Callback(
-    private val progress: MutableLongState,
-    private val toUpdate: MutableLongState,
-    private val total: MutableLongState
+    private val status: MutableState<UpdateStatus>
 ): iroh.ImportTreeCallback {
-    override suspend fun progress() {
-        this.progress.longValue++
-    }
-
-    override suspend fun toUpdate(toUpdate: ULong) {
-        this.toUpdate.longValue = toUpdate.toLong()
-    }
-
-    override suspend fun total(total: ULong) {
-        this.total.longValue = total.toLong()
+    override suspend fun callback(status: UpdateStatus) {
+        this.status.value = status
     }
 }

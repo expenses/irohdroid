@@ -93,13 +93,13 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 LaunchedEffect(Unit) {
-                                    documents = node.docList()
-                                    nodeId = node.nodeId()
+                                    documents = node.docs().list()
+                                    nodeId = node.node().nodeId()
                                 }
                                 when (state) {
                                     "Documents" -> run {
                                         Documents(backend, documents) {
-                                            documents = node.docList()
+                                            documents = node.docs().list()
                                         }
                                     }
                                     "Info" -> run {

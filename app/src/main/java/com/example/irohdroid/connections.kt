@@ -21,7 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import iroh.IrohNode
+import iroh.Iroh
 import kotlinx.coroutines.delay
 import java.time.Duration
 
@@ -67,7 +67,7 @@ fun ExpandableCard(title: String, inner: (@Composable () -> Unit)) {
 
 @Suppress("NAME_SHADOWING")
 @Composable
-fun NodeInfo(node: IrohNode) {
+fun NodeInfo(node: Iroh) {
     var id by remember {
         mutableStateOf("")
     }
@@ -81,12 +81,12 @@ fun NodeInfo(node: IrohNode) {
     }
 
     LaunchedEffect(Unit) {
-        id = node.nodeId()
-        status = node.status()
+        id = node.node().nodeId()
+        status = node.node().status()
 
         while (true) {
             delay(100)
-            connections = node.connections()
+            connections = node.node().connections()
         }
     }
 
