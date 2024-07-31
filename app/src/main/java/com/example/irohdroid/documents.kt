@@ -191,7 +191,7 @@ fun ShareDialog(ticket: String, onClose: () -> Unit, shareWrite: Boolean, onChan
 }
 
 @Composable
-fun Sources(backend: Backend, namespace: String, onAdd: () -> Unit) {
+fun Sources(backend: Backend, namespace: String, onAdd: () -> Unit, onHiddenRefresh: () -> Unit) {
     var sources by remember {
         mutableStateOf(backend.sourcesForDocument(namespace))
     }
@@ -204,9 +204,14 @@ fun Sources(backend: Backend, namespace: String, onAdd: () -> Unit) {
             }
         }
     }
-    AddSourceButton(backend, namespace) {
-        sources = backend.sourcesForDocument(namespace)
-        onAdd()
+    Row {
+        AddSourceButton(backend, namespace) {
+            sources = backend.sourcesForDocument(namespace)
+            onAdd()
+        }
+        SimpleIconButton(Icons.Default.Refresh) {
+            onHiddenRefresh()
+        }
     }
 }
 
@@ -237,23 +242,26 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
     val status = remember {
         mutableStateOf(UpdateStatus(
             found = 0u,
-            updated = 0u
+            new = 0u,
+            completed = 0u
     ))
     }
 
     @Suppress("NAME_SHADOWING")
     val update = {
-        scope.launch {
-            val doc = node.docs().open(namespace)
-            doc?.also {
+        recheck: Boolean -> run {
+            scope.launch {
+                val doc = node.docs().open(namespace)
+                doc?.also {
                     doc -> run {
-                backend.addFileTree(doc, namespace, node.authors().default(),
-                    inPlace = true,
-                    recheck = false,
-                    cb = Callback(status)
-                )
-                totalFiles.longValue = backend.numFilesForDocument(namespace).toLong()
-            }
+                        backend.addFileTree(doc, namespace, node.authors().default(),
+                            inPlace = true,
+                            recheck,
+                            cb = Callback(status)
+                        )
+                        totalFiles.longValue = backend.numFilesForDocument(namespace).toLong()
+                    }
+                }
             }
         }
     }
@@ -269,17 +277,21 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
                 Row {
                     InlineIcon(
                         Icons.Default.FilePresent,
-                        totalFiles.longValue.toString()
+                        if (status.value.found != 0u.toULong()) {
+                            "${status.value.found}/${totalFiles.longValue}"
+                        } else {
+                            "${totalFiles.longValue}"
+                        }
                     )
-                    if (status.value.found != 0u.toULong()) {
-                        InlineIcon(Icons.Default.FileDownloadDone, "${status.value.updated}/${status.value.found}")
+                    if (status.value.new != 0u.toULong()) {
+                        InlineIcon(Icons.Default.FileDownloadDone, "${status.value.completed}/${status.value.new}")
                     }
                 }
             }
         }, end = {
             ShareButton(node, namespace)
             SimpleIconButton(icon = Icons.Default.Refresh, onClick= {
-                update()
+                update(false)
             })
             SimpleIconButton(icon = Icons.Default.Close) {
                 scope.launch {
@@ -293,7 +305,9 @@ fun Document(backend: Backend, namespace: String, onUpdate: suspend () -> Unit) 
         })
         if (showSources) {
             Sources(backend, namespace, onAdd = {
-                update()
+                update(false)
+            }, onHiddenRefresh = {
+                update(true)
             })
         }
     }

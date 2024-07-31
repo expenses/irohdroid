@@ -3,7 +3,7 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     android-nixpkgs.url = "github:HPRIOR/android-nixpkgs";
-    gradle2nix-flake.url = "github:expenses/gradle2nix/overrides-fix";
+    gradle2nix-flake.url = "github:tadfisher/gradle2nix/v2";
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -167,6 +167,7 @@
             };
           in
           gradle2nix-flake.builders.${system}.buildGradlePackage {
+            name = "package";
             lockFile = ./gradle.lock;
             src = full-src;
             version = "0.1.0";
@@ -224,7 +225,7 @@
             emu-jni-libs = jni-libs-for-builds x86_64-only;
             app-jni-libs = jni-libs-for-builds aarch64-only;
             app = apk-for-rust-builds aarch64-only;
-            signed-app = pkgs.runCommand "signed-apk" { } ''
+            signed-app = pkgs.runCommand "signed-app" { } ''
               cp ${app}/release/app-release-unsigned.apk .
               chmod +w app-release-unsigned.apk
               mkdir $out
